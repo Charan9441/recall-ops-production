@@ -235,7 +235,7 @@ export function App() {
       {/* Footer */}
       <footer className="border-t border-gray-800 py-4 bg-[#0a0d14] text-center text-xs text-gray-500">
         <p>
-          Recall-Ops &bull; HackwithHyderabad 3.0 MVP &bull; Built with Hindsight Persistent Memory + Groq LLM + FastAPI + React
+          Recall-Ops &bull; Built with Hindsight Persistent Memory + Groq LLM + FastAPI + React
         </p>
       </footer>
     </div>

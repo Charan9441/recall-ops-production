@@ -20,9 +20,6 @@ export const Header: React.FC<HeaderProps> = ({ hindsightStatus, onLoadDemoScena
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-white">RECALL-OPS</h1>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/50 font-mono">
-                HackwithHyderabad 3.0 MVP
-              </span>
             </div>
             <p className="text-xs text-gray-400">
               Production Incident Intelligence powered by Persistent Hindsight Memory

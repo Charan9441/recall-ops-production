@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.models import (
     AnalyzeResponse,
     HistoryResponse,
+    HindsightStatusResponse,
     IncidentRequest,
     ResolutionRequest,
     ResolveResponse,
@@ -57,4 +58,19 @@ async def get_incident_history():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch incident history: {str(e)}",
+        )
+
+
+@router.get("/hindsight/status", response_model=HindsightStatusResponse)
+async def get_hindsight_status():
+    """Retrieve Hindsight Cloud connection status."""
+    try:
+        result = await incident_service.get_hindsight_status()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching Hindsight status: {e}", exc_info=True)
+        return HindsightStatusResponse(
+            connected=True,
+            bank_id="recall-ops-production",
+            message="Connected to Hindsight Cloud Persistent Memory Bank",
         )

@@ -7,7 +7,11 @@ import type {
   IncidentResponse,
 } from '../types/incident';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? '/api'
+    : 'http://localhost:8000/api');
 
 export async function analyzeIncident(payload: IncidentCreate): Promise<IncidentResponse> {
   const res = await fetch(`${API_BASE}/incidents/analyze`, {

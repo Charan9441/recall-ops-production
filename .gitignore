@@ -19,7 +19,9 @@ frontend/.vite/
 *.env
 
 # IDE / System
+.vercel/
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+.vercel

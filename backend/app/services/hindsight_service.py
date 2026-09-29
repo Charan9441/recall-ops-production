@@ -82,44 +82,59 @@ class HindsightService:
         content: str = "",
         context: Optional[str] = None,
         incident_id: Optional[str] = None,
+        timestamp: Optional[str] = None,
         service: Optional[str] = None,
+        environment: Optional[str] = "production",
         severity: Optional[str] = None,
         error: Optional[str] = None,
         logs: Optional[str] = None,
+        symptoms: Optional[Any] = None,
         version: Optional[str] = None,
         root_cause: Optional[str] = None,
         resolution: Optional[str] = None,
         outcome: Optional[str] = "Resolved",
         resolution_time_minutes: Optional[int] = None,
+        status: Optional[str] = "RESOLVED",
     ) -> bool:
         """Stores an incident experience in Hindsight memory bank using retain."""
 
-        # If keyword args provided instead of pre-formatted content string
+        # If keyword args provided, format into rich natural language memory text
         if incident_id and (service or root_cause or resolution):
             lines = [
                 f"Incident ID: {incident_id}",
-                f"Service: {service or 'N/A'}",
-                f"Severity: {severity or 'HIGH'}",
-                f"Error: {error or 'N/A'}",
-                f"Logs: {logs or 'N/A'}",
             ]
+            if timestamp:
+                lines.append(f"Timestamp: {timestamp}")
+            lines.append(f"Service: {service or 'N/A'}")
+            lines.append(f"Environment: {environment or 'production'}")
+            lines.append(f"Severity: {severity or 'HIGH'}")
+            if error:
+                lines.append(f"Error:\n{error}")
+            if logs:
+                lines.append(f"Logs:\n{logs}")
+            if symptoms:
+                sym_str = ", ".join(symptoms) if isinstance(symptoms, list) else str(symptoms)
+                lines.append(f"Symptoms:\n{sym_str}")
             if version:
-                lines.append(f"Deployment Version: {version}")
+                lines.append(f"Deployment: {version}")
             if root_cause:
-                lines.append(f"\nRoot Cause:\n{root_cause}")
+                lines.append(f"Root Cause:\n{root_cause}")
             if resolution:
-                lines.append(f"\nResolution:\n{resolution}")
+                lines.append(f"Resolution:\n{resolution}")
             if outcome:
-                lines.append(f"\nOutcome:\n{outcome}")
+                lines.append(f"Outcome:\n{outcome}")
             if resolution_time_minutes:
-                lines.append(f"Resolution Time: {resolution_time_minutes} minutes")
-            content = "\n".join(lines)
+                lines.append(f"Resolution Time:\n{resolution_time_minutes} minutes.")
+            if status:
+                lines.append(f"Status:\n{status}")
+
+            content = "\n\n".join(lines)
             if not context:
                 context = f"Service: {service}, Incident: {incident_id}"
 
         memory_entry = {"text": content, "context": context, "id": incident_id}
         
-        # Replace or append in local memories
+        # Replace or append in local memories fallback
         existing_idx = next(
             (i for i, m in enumerate(self._local_memories) if m.get("id") == incident_id and incident_id), None
         )
@@ -150,6 +165,34 @@ class HindsightService:
                 return False
 
         return True
+
+    async def list_memory_status(self) -> dict[str, Any]:
+        """Lists memory units in the Hindsight bank for verification."""
+        if not self.client:
+            return {"bank": self.bank_id, "total": len(self._local_memories), "items": self._local_memories}
+
+        try:
+            if hasattr(self.client, "alist_memories"):
+                res = await self.client.alist_memories(bank_id=self.bank_id)
+            else:
+                res = await asyncio.to_thread(self.client.list_memories, bank_id=self.bank_id)
+            
+            items = []
+            if res and hasattr(res, "items") and res.items:
+                items = res.items
+            elif res and hasattr(res, "results") and res.results:
+                items = res.results
+            elif isinstance(res, list):
+                items = res
+
+            return {
+                "bank": self.bank_id,
+                "total": len(items),
+                "items": items,
+            }
+        except Exception as e:
+            logger.warning(f"Error listing Hindsight memories: {e}")
+            return {"bank": self.bank_id, "total": len(self._local_memories), "items": self._local_memories}
 
 
 hindsight_service = HindsightService()
