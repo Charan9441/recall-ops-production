@@ -65,7 +65,7 @@ class HindsightService:
             except Exception as e:
                 logger.warning(f"Hindsight recall API warning: {e}. Utilizing internal memory store.")
 
-        # Fallback to local memory list matching
+        # Fallback keyword matching over local memory store
         query_tokens = set(query.lower().split())
         scored = []
         for mem in self._local_memories:
@@ -77,10 +77,56 @@ class HindsightService:
 
         return [item[1] for item in scored[:5]] if scored else [m for m in self._local_memories[:5]]
 
-    async def retain_incident(self, content: str, context: Optional[str] = None) -> bool:
+    async def retain_incident(
+        self,
+        content: str = "",
+        context: Optional[str] = None,
+        incident_id: Optional[str] = None,
+        service: Optional[str] = None,
+        severity: Optional[str] = None,
+        error: Optional[str] = None,
+        logs: Optional[str] = None,
+        version: Optional[str] = None,
+        root_cause: Optional[str] = None,
+        resolution: Optional[str] = None,
+        outcome: Optional[str] = "Resolved",
+        resolution_time_minutes: Optional[int] = None,
+    ) -> bool:
         """Stores an incident experience in Hindsight memory bank using retain."""
-        memory_entry = {"text": content, "context": context}
-        self._local_memories.append(memory_entry)
+
+        # If keyword args provided instead of pre-formatted content string
+        if incident_id and (service or root_cause or resolution):
+            lines = [
+                f"Incident ID: {incident_id}",
+                f"Service: {service or 'N/A'}",
+                f"Severity: {severity or 'HIGH'}",
+                f"Error: {error or 'N/A'}",
+                f"Logs: {logs or 'N/A'}",
+            ]
+            if version:
+                lines.append(f"Deployment Version: {version}")
+            if root_cause:
+                lines.append(f"\nRoot Cause:\n{root_cause}")
+            if resolution:
+                lines.append(f"\nResolution:\n{resolution}")
+            if outcome:
+                lines.append(f"\nOutcome:\n{outcome}")
+            if resolution_time_minutes:
+                lines.append(f"Resolution Time: {resolution_time_minutes} minutes")
+            content = "\n".join(lines)
+            if not context:
+                context = f"Service: {service}, Incident: {incident_id}"
+
+        memory_entry = {"text": content, "context": context, "id": incident_id}
+        
+        # Replace or append in local memories
+        existing_idx = next(
+            (i for i, m in enumerate(self._local_memories) if m.get("id") == incident_id and incident_id), None
+        )
+        if existing_idx is not None:
+            self._local_memories[existing_idx] = memory_entry
+        else:
+            self._local_memories.append(memory_entry)
 
         if self.client:
             try:

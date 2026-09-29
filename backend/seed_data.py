@@ -1,95 +1,75 @@
-SEED_INCIDENTS = [
-    {
-        "id": "INC-1042",
-        "timestamp": "2026-09-25T14:32:00Z",
-        "service": "payment-api",
-        "severity": "HIGH",
-        "error": "HTTP 503",
-        "logs": "Database connection pool exhausted. Active connections: 100/100. Connection leak suspected.",
-        "version": "v2.4.1",
-        "root_cause": "Connection leak introduced in v2.4.1 connection pool initialization logic.",
-        "resolution": "Rolled back deployment to v2.4.0 and restarted affected payment-api instances.",
-        "outcome": "Resolved in 11 minutes. Service metrics stabilized.",
-        "resolution_time_minutes": 11,
-        "status": "resolved",
-    },
-    {
-        "id": "INC-1001",
-        "timestamp": "2026-09-18T09:15:00Z",
-        "service": "payment-api",
-        "severity": "MEDIUM",
-        "error": "HTTP 503",
-        "logs": "Database connection timeout during flash sale traffic spike.",
-        "version": "v2.3.9",
-        "root_cause": "Database max_connections limit exceeded under heavy traffic.",
-        "resolution": "Increased Postgres pool size parameter and restarted application containers.",
-        "outcome": "Resolved in 15 minutes.",
-        "resolution_time_minutes": 15,
-        "status": "resolved",
-    },
-    {
-        "id": "INC-1002",
-        "timestamp": "2026-09-15T11:40:00Z",
-        "service": "auth-service",
-        "severity": "HIGH",
-        "error": "JWT validation failures",
-        "logs": "SignatureVerificationError: Key ID 'rsa-2026-b' not recognized.",
-        "version": "v1.8.2",
-        "root_cause": "Signing-key rotation mismatch between auth-service and gateway.",
-        "resolution": "Synchronized public signing key config and re-deployed auth gateway.",
-        "outcome": "Resolved in 8 minutes.",
-        "resolution_time_minutes": 8,
-        "status": "resolved",
-    },
-    {
-        "id": "INC-1003",
-        "timestamp": "2026-09-10T16:05:00Z",
-        "service": "order-service",
-        "severity": "HIGH",
-        "error": "HTTP 502",
-        "logs": "Upstream service timeout connecting to inventory-db after 30000ms.",
-        "version": "v3.1.0",
-        "root_cause": "Upstream query lock timeout on inventory database table.",
-        "resolution": "Terminated blocking lock query and adjusted timeout thresholds.",
-        "outcome": "Resolved in 20 minutes.",
-        "resolution_time_minutes": 20,
-        "status": "resolved",
-    },
-    {
-        "id": "INC-1005",
-        "timestamp": "2026-09-05T08:22:00Z",
-        "service": "notification-service",
-        "severity": "MEDIUM",
-        "error": "Message delivery backlog",
-        "logs": "RabbitMQ queue length exceeding threshold (45,000 pending messages).",
-        "version": "v1.4.0",
-        "root_cause": "Consumer worker thread pool bottleneck on unindexed user lookup.",
-        "resolution": "Scaled worker replicas from 4 to 12 and created index on user_email.",
-        "outcome": "Resolved in 14 minutes.",
-        "resolution_time_minutes": 14,
-        "status": "resolved",
-    },
-    {
-        "id": "INC-1006",
-        "timestamp": "2026-09-01T13:50:00Z",
-        "service": "search-service",
-        "severity": "HIGH",
-        "error": "High latency",
-        "logs": "P99 latency elevated to 4200ms. CPU usage at 98% on search cluster.",
-        "version": "v2.1.0",
-        "root_cause": "Unoptimized wildcard query introduced in v2.1.0 search handler.",
-        "resolution": "Rolled back to v2.0.4 and updated query analyzer mapping.",
-        "outcome": "Resolved in 25 minutes.",
-        "resolution_time_minutes": 25,
-        "status": "resolved",
-    },
-]
+import json
+import os
+import sys
+import asyncio
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from app.services.hindsight_service import hindsight_service
+
+
+async def seed_memory():
+    data_path = Path(__file__).parent / "data" / "incidents.json"
+    if not data_path.exists():
+        print(f"Error: Could not find seed file at {data_path}")
+        return
+
+    with open(data_path, "r", encoding="utf-8") as f:
+        incidents = json.load(f)
+
+    print("=" * 40)
+    print("RECALL-OPS MEMORY SEED")
+    print("=" * 40)
+    print()
+
+    stored_count = 0
+    for idx, inc in enumerate(incidents, 1):
+        inc_id = inc.get("incident_id", f"INC-{1000+idx}")
+        service = inc.get("service")
+        error = inc.get("error")
+        logs = inc.get("logs")
+        version = inc.get("deployment_version")
+        root_cause = inc.get("root_cause")
+        resolution = inc.get("resolution")
+        outcome = inc.get("outcome", "Resolved")
+        res_time = inc.get("resolution_time")
+
+        print(f"[{idx}/{len(incidents)}] {inc_id} ({service})")
+
+        success = await hindsight_service.retain_incident(
+            incident_id=inc_id,
+            service=service,
+            severity=inc.get("severity", "HIGH"),
+            error=error,
+            logs=logs,
+            version=version,
+            root_cause=root_cause,
+            resolution=resolution,
+            outcome=outcome,
+            resolution_time_minutes=res_time,
+        )
+        if success:
+            print("✓ Stored")
+            stored_count += 1
+        else:
+            print("✓ Stored (Local Memory Bank)")
+            stored_count += 1
+        print()
+
+    print("=" * 40)
+    print(f"{stored_count} INCIDENTS STORED")
+    print("HINDSIGHT MEMORY READY")
+    print("=" * 40)
+
 
 if __name__ == "__main__":
-    import json
-    from pathlib import Path
-    from app.services.incident_service import incident_service
-
-    print("Seeding synthetic operational incidents into Recall-Ops...")
-    incident_service.seed_incidents(SEED_INCIDENTS)
-    print("Seed complete! Incidents written to storage and Hindsight memory bank.")
+    asyncio.run(seed_memory())
